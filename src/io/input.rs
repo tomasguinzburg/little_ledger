@@ -37,7 +37,7 @@ pub enum TransactionType {
 }
 
 #[derive(Error, Debug)]
-pub enum InputError {
+pub enum InputMappingError {
     #[error("unknown transaction type {0}")]
     UnknownType(String),
     #[error("missing mandatory amount for a {transaction_type:?} - {tx:?} - {client:?}")]
@@ -57,7 +57,7 @@ pub enum InputError {
 }
 
 impl TryFrom<InputTransactionRecord> for Transaction {
-    type Error = InputError;
+    type Error = InputMappingError;
 
     fn try_from(raw: InputTransactionRecord) -> Result<Self, Self::Error> {
         let tx = raw.tx;
@@ -66,7 +66,7 @@ impl TryFrom<InputTransactionRecord> for Transaction {
 
         match raw.transaction_type {
             TransactionType::Deposit => {
-                let amount = raw.amount.ok_or(InputError::MissingAmount {
+                let amount = raw.amount.ok_or(InputMappingError::MissingAmount {
                     transaction_type,
                     tx,
                     client,
@@ -74,14 +74,16 @@ impl TryFrom<InputTransactionRecord> for Transaction {
                 Ok(Transaction::Deposit(Deposit { client, tx, amount }))
             }
             TransactionType::Withdrawal => {
-                let amount = raw.amount.ok_or(InputError::MissingAmount {
+                let amount = raw.amount.ok_or(InputMappingError::MissingAmount {
                     transaction_type,
                     tx,
                     client,
                 })?;
                 Ok(Transaction::Withdrawal(Withdrawal { client, tx, amount }))
             }
-            _ => Err(InputError::UnknownType("not implemented".to_string())),
+            _ => Err(InputMappingError::UnknownType(
+                "not implemented".to_string(),
+            )),
         }
     }
 }
