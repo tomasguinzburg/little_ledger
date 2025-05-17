@@ -3,12 +3,13 @@ use rust_decimal_macros::dec;
 use crate::{
     io::{self, input::InputTransactionRecord},
     model::{
-        common::{Amount, Client, Tx},
-        transaction::{Deposit, Transaction, Withdrawal},
+        common::{Amount, Client, DisputeStatus, Tx},
+        transaction::{Deposit, Transaction, Type, Withdrawal},
     },
 };
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn test_csv_transaction_deserialization() {
     let csv_data = "type,client,tx,amount
                     deposit,1,100,10.50
@@ -44,28 +45,35 @@ fn test_csv_transaction_deserialization() {
 
     assert_eq!(
         txns[0],
-        Transaction::Deposit(Deposit {
+        Transaction {
             client: Client(1),
             tx: Tx(100),
-            amount: Amount(dec!(10.50))
-        })
+            t_type: Type::Deposit(Deposit {
+                amount: Amount(dec!(10.50)),
+                dispute_status: DisputeStatus::Closed,
+            }),
+        }
     );
     assert_eq!(
         txns[1],
-        Transaction::Withdrawal(Withdrawal {
+        Transaction {
             client: Client(2),
             tx: Tx(200),
-            amount: Amount(dec!(5.25))
-        })
+            t_type: Type::Withdrawal(Withdrawal {
+                amount: Amount(dec!(5.25)),
+            }),
+        }
     );
     assert_eq!(
         txns[2],
-        Transaction::Deposit(Deposit {
-            // From "deposit,14,1400,20.0,extra_column"
+        Transaction {
             client: Client(14),
             tx: Tx(1400),
-            amount: Amount(dec!(20.0))
-        })
+            t_type: Type::Deposit(Deposit {
+                amount: Amount(dec!(20.0)),
+                dispute_status: DisputeStatus::Closed,
+            }),
+        }
     );
     assert_eq!(ierrs.len(), 2, "Expected 2 input_errs. Got: {ierrs:?}",);
     assert!(

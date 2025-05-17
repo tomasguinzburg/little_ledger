@@ -23,9 +23,4 @@ suspicious = "deny"
 complexity = "deny"
 perf = "deny"
 style = "deny"
-
-pedantic = "warn"
-cargo = "warn"
-
-multiple-crate-versions = { level = "allow", priority = 1 }
-upper_case_acronyms = { level = "allow", priority = 1 } # sorry I come from Go, my repo my rules.
+pedantic = { level =  "warn", priority = -1 }

@@ -1,7 +1,9 @@
+use std::collections::HashMap;
+
 use super::{
     balance::Balance,
-    common::Client,
-    transaction::{Deposit, Transaction, Withdrawal},
+    common::{Client, Tx},
+    transaction::{Deposit, Transaction, Type},
 };
 use anyhow::{Result, anyhow, bail};
 
@@ -10,7 +12,7 @@ pub struct Account {
     pub client: Client,
     pub balance: Balance,
     pub locked: bool,
-    pub history: Vec<Transaction>,
+    pub deposits: HashMap<Tx, Deposit>,
 }
 
 impl Account {
@@ -19,27 +21,74 @@ impl Account {
             client,
             balance: Balance::default(),
             locked: false,
-            history: Vec::new(),
+            deposits: HashMap::new(),
         }
     }
 
-    pub fn deposit(&mut self, tx: Deposit) -> Result<()> {
-        if self.locked {
-            bail!("account is locked {}", self.client.0) //TODO: impl Display
+    pub fn process(&mut self, transaction: Transaction) -> Result<()> {
+        Account::bail_if_locked(self)?;
+
+        match transaction.t_type {
+            Type::Deposit(deposit) => {
+                self.balance.credit(deposit.amount);
+                self.deposits.insert(transaction.tx, deposit);
+                Ok(())
+            }
+            Type::Withdrawal(withdrawal) => self
+                .balance
+                .debit(withdrawal.amount)
+                .map_err(|e| anyhow!("{e} for tx {:?}", transaction.tx)),
+            Type::Dispute => {
+                let deposit = self.get_deposit(transaction.tx)?;
+                let amount = deposit.amount;
+
+                deposit
+                    .open_dispute()
+                    .map_err(|e| anyhow!("{e} for {:?}", transaction.tx))?;
+
+                // Assumption #4 in README.md:
+                // If you already withdrew the funds, we can't hold them, so we lock your account.
+                let result = self.balance.hold(amount);
+                if result.is_err() {
+                    self.locked = true;
+                }
+
+                result
+            }
+            Type::Resolve => {
+                let deposit = self.get_deposit(transaction.tx)?;
+                let amount = deposit.amount;
+
+                deposit
+                    .close_dispute()
+                    .map_err(|e| anyhow!("{e} for {:?}", transaction.tx))?;
+
+                self.balance.release(amount)
+            }
+            Type::Chargeback => {
+                self.locked = true;
+                let deposit = self.get_deposit(transaction.tx)?;
+                let amount = deposit.amount;
+
+                deposit
+                    .close_dispute()
+                    .map_err(|e| anyhow!("{e} for {:?}", transaction.tx))?;
+
+                self.balance.revert(amount)
+            }
         }
-        self.balance.credit(tx.amount);
-        self.history.push(Transaction::Deposit(tx));
-        Ok(())
     }
 
-    pub fn withdraw(&mut self, tx: Withdrawal) -> Result<()> {
+    fn get_deposit(&mut self, tx: Tx) -> Result<&mut Deposit> {
+        self.deposits
+            .get_mut(&tx)
+            .ok_or(anyhow!("no deposit for resolve tx: {:?}", tx))
+    }
+
+    fn bail_if_locked(&self) -> Result<()> {
         if self.locked {
-            bail!("account is locked {}", self.client.0) //TODO: impl Display
+            bail!("account is locked {}", self.client.0)
         }
-        self.balance
-            .debit(tx.amount)
-            .map_err(|e| anyhow!("{e} for tx {:?}", tx.tx))?;
-        self.history.push(Transaction::Withdrawal(tx));
         Ok(())
     }
 }

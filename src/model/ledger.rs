@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 
 use super::{account::Account, common::Client, transaction::Transaction};
 
@@ -10,12 +10,8 @@ pub struct Ledger {
 }
 
 impl Ledger {
-    pub fn process(&mut self, trx: Transaction) -> Result<()> {
-        match trx {
-            Transaction::Deposit(d) => self.account_for(d.client).deposit(d),
-            Transaction::Withdrawal(w) => self.account_for(w.client).withdraw(w),
-            _ => bail!("not implemented"),
-        }
+    pub fn process(&mut self, txn: Transaction) -> Result<()> {
+        self.account_for(txn.client).process(txn)
     }
 
     pub fn account_for(&mut self, client: Client) -> &mut Account {

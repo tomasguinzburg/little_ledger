@@ -3,10 +3,16 @@ use std::ops::{Add, AddAssign, SubAssign};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, PartialEq)]
+pub enum DisputeStatus {
+    Closed,
+    Opened,
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub struct Client(pub u16);
 
-#[derive(Debug, PartialEq, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub struct Tx(pub u32);
 
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize)]

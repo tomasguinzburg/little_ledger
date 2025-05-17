@@ -51,7 +51,6 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Then process all transactions.
         .for_each(|processing_result| {
             if let Err(e) = processing_result {
-                // Should be <WARN if using a logger, as this is somewhat expected.
                 eprintln!("warning: {e}");
             }
         });

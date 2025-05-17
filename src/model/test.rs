@@ -1,22 +1,28 @@
 use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 
+use crate::model::common::DisputeStatus;
+
 use super::{
     common::{Amount, Client, Tx},
     ledger::Ledger,
-    transaction::{Deposit, Transaction, Withdrawal},
+    transaction::{Deposit, Transaction, Type, Withdrawal},
 };
 
 #[test]
 fn test_withdrawal_creation() {
-    let txn = Transaction::Withdrawal(Withdrawal {
-        client: Client(1),
+    let txn = Transaction {
+        t_type: Type::Withdrawal(Withdrawal {
+            amount: Amount(dec!(3.14)),
+        }),
         tx: Tx(1),
-        amount: Amount(dec!(3.14)),
-    });
+        client: Client(1),
+    };
 
-    if let Transaction::Withdrawal(wrd) = txn {
-        assert_eq!(wrd.client, Client(1));
+    assert_eq!(txn.client, Client(1));
+
+    if let Type::Withdrawal(w) = txn.t_type {
+        assert_eq!(w.amount, Amount(dec!(3.14)));
     }
 }
 
@@ -24,21 +30,29 @@ fn test_withdrawal_creation() {
 fn test_ledger() {
     let mut ledger = Ledger::default();
     let trxs = [
-        Transaction::Deposit(Deposit {
+        Transaction {
+            t_type: Type::Deposit(Deposit {
+                amount: Amount(dec!(10.00)),
+                dispute_status: DisputeStatus::Closed,
+            }),
             client: Client(1),
             tx: Tx(1),
-            amount: Amount(dec!(10.00)),
-        }),
-        Transaction::Deposit(Deposit {
+        },
+        Transaction {
+            t_type: Type::Deposit(Deposit {
+                amount: Amount(dec!(10.00)),
+                dispute_status: DisputeStatus::Closed,
+            }),
             client: Client(1),
             tx: Tx(2),
-            amount: Amount(dec!(10.00)),
-        }),
-        Transaction::Withdrawal(Withdrawal {
+        },
+        Transaction {
+            t_type: Type::Withdrawal(Withdrawal {
+                amount: Amount(dec!(5.00)),
+            }),
             client: Client(1),
             tx: Tx(3),
-            amount: Amount(dec!(5.00)),
-        }),
+        },
     ];
     trxs.map(|trx| ledger.process(trx).expect("happy path shouldn't err"));
 
@@ -51,21 +65,33 @@ fn test_ledger() {
 #[test]
 fn test_ledger_errs_on_insufficient_funds() {
     let mut ledger = Ledger::default();
-    let trx_0 = Transaction::Deposit(Deposit {
+
+    let trx_0 = Transaction {
+        t_type: Type::Deposit(Deposit {
+            amount: Amount(dec!(10.00)),
+            dispute_status: DisputeStatus::Closed,
+        }),
         client: Client(1),
         tx: Tx(1),
-        amount: Amount(dec!(10.00)),
-    });
-    let trx_1 = Transaction::Deposit(Deposit {
+    };
+
+    let trx_1 = Transaction {
+        t_type: Type::Deposit(Deposit {
+            amount: Amount(dec!(10.00)),
+            dispute_status: DisputeStatus::Closed,
+        }),
         client: Client(1),
         tx: Tx(2),
-        amount: Amount(dec!(10.00)),
-    });
-    let trx_2 = Transaction::Withdrawal(Withdrawal {
+    };
+
+    let trx_2 = Transaction {
+        t_type: Type::Withdrawal(Withdrawal {
+            amount: Amount(dec!(30.00)),
+        }),
         client: Client(1),
         tx: Tx(3),
-        amount: Amount(dec!(30.00)),
-    });
+    };
+
     ledger
         .process(trx_0)
         .expect("deposits are safe on unlocked accounts");
