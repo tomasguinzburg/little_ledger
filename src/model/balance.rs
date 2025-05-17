@@ -17,6 +17,10 @@ impl Default for Balance {
 }
 
 impl Balance {
+    pub fn total(&self) -> Amount {
+        self.available + self.held
+    }
+
     pub fn credit(&mut self, amount: Amount) {
         self.available += amount;
     }

@@ -3,7 +3,7 @@ use super::{
     common::Client,
     transaction::{Deposit, Transaction, Withdrawal},
 };
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 
 #[derive(Debug)]
 pub struct Account {
@@ -36,7 +36,9 @@ impl Account {
         if self.locked {
             bail!("account is locked {}", self.client.0) //TODO: impl Display
         }
-        self.balance.debit(tx.amount)?;
+        self.balance
+            .debit(tx.amount)
+            .map_err(|e| anyhow!("{e} for tx {:?}", tx.tx))?;
         self.history.push(Transaction::Withdrawal(tx));
         Ok(())
     }

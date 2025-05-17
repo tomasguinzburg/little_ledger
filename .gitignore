@@ -1,3 +1,4 @@
 /target
 .direnv/
 transactions.csv
+malformed.csv

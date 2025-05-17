@@ -1,6 +1,13 @@
-use std::{error::Error, fs::File, io::BufReader};
+use std::{
+    error::Error,
+    fs::File,
+    io::{BufReader, BufWriter, stdout},
+};
 
-use io::input::{self, InputMappingError, InputTransactionRecord};
+use io::{
+    input::{self, InputMappingError, InputTransactionRecord},
+    output::{self, OutputAccountRecord},
+};
 use model::{ledger::Ledger, transaction::Transaction};
 
 mod io;
@@ -8,11 +15,9 @@ mod model;
 
 const PATH: &str = "./transactions.csv";
 
-/// This program is prepared to handle input pesimistically:
+/// This program is prepared to handle more or less malformed input:
 ///     It assumes only stdout matters, and stderr can be trated as a log,
 ///     which seems valid for these kind of requirements `cargo run -- input.csv > output.csv`.
-///     Ideally, when dealing with transactions, users of this program should ensure their
-///     input CSVs are not malformed.
 fn main() -> Result<(), Box<dyn Error>> {
     let file = File::open(PATH)?;
     let mut csv_reader = input::reader(BufReader::new(file));
@@ -46,13 +51,18 @@ fn main() -> Result<(), Box<dyn Error>> {
         // Then process all transactions.
         .for_each(|processing_result| {
             if let Err(e) = processing_result {
-                // Should be <WARN if using a logger, as this is expected.
-                eprintln!("ledger_processing_error: {e}");
+                // Should be <WARN if using a logger, as this is somewhat expected.
+                eprintln!("warning: {e}");
             }
         });
 
-    // TODO: output ledger to stdout as CSV
-    // ledger.print();
+    // Serialize ledger
+    let mut csv_writer = output::writer(BufWriter::new(stdout()));
+    for acc in ledger.accounts.into_values() {
+        csv_writer
+            .serialize(OutputAccountRecord::from(acc))
+            .expect("Should be serializable no errors"); //TODO: this is dangerous
+    }
 
     Ok(())
 }
