@@ -1,0 +1,31 @@
+[package]
+name = "payments-engine"
+version = "0.1.0"
+edition = "2024"
+description = "A model of a payments engine with fraud detection capabilities"
+repository = "https://github.com/tomasguinzburg/payments-engine"
+readme = "README.md"
+
+[dependencies]
+serde = { version = "1.0.219", features = ["derive"] }
+csv = "1.3.1"
+rust_decimal = { version = "1.37.1", features = ["serde-arbitrary-precision"] }
+rust_decimal_macros = "1.37.1"
+anyhow = "1.0.98"
+thiserror = "2.0.12"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+correctness = "deny"
+suspicious = "deny"
+complexity = "deny"
+perf = "deny"
+style = "deny"
+
+pedantic = "warn"
+cargo = "warn"
+
+multiple-crate-versions = { level = "allow", priority = 1 }
+upper_case_acronyms = { level = "allow", priority = 1 } # sorry I come from Go, my repo my rules.
