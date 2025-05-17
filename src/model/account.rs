@@ -26,6 +26,7 @@ impl Account {
     }
 
     pub fn process(&mut self, transaction: Transaction) -> Result<()> {
+        Account::bail_if_unauthorized(self, transaction.client)?;
         Account::bail_if_locked(self)?;
 
         match transaction.t_type {
@@ -46,8 +47,6 @@ impl Account {
                     .open_dispute()
                     .map_err(|e| anyhow!("{e} for {:?}", transaction.tx))?;
 
-                // Assumption #4 in README.md:
-                // If you already withdrew the funds, we can't hold them, so we lock your account.
                 let result = self.balance.hold(amount);
                 if result.is_err() {
                     self.locked = true;
@@ -88,6 +87,13 @@ impl Account {
     fn bail_if_locked(&self) -> Result<()> {
         if self.locked {
             bail!("account is locked {}", self.client.0)
+        }
+        Ok(())
+    }
+
+    fn bail_if_unauthorized(&self, client: Client) -> Result<()> {
+        if self.client != client {
+            bail!("unauthorized")
         }
         Ok(())
     }
