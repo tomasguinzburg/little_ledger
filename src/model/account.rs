@@ -7,15 +7,25 @@ use super::{
 };
 use anyhow::{Result, anyhow, bail};
 
+/// A client's account.
 #[derive(Debug)]
 pub struct Account {
+    /// The client who owns the account.
     pub client: Client,
+    /// the balance on this account.
     pub balance: Balance,
+    /// This account's locked status.
     pub locked: bool,
+    /// A set of deposits (as a `HashMap` for fast random access using the `Tx`)
     pub deposits: HashMap<Tx, Deposit>,
 }
 
 impl Account {
+    // Initialize an account
+    //
+    // Creates a new account for the selected client with default balance, no deposits, and
+    // unlocked.
+    #[must_use]
     pub fn new(client: Client) -> Self {
         Self {
             client,
@@ -25,7 +35,26 @@ impl Account {
         }
     }
 
-    pub fn process(&mut self, transaction: Transaction) -> Result<()> {
+    /// Lock the account
+    pub fn lock(&mut self) {
+        self.locked = true;
+    }
+
+    /// Apply a transaction
+    ///
+    /// Apply `transaction` to this account. If the transaction is compatible with the account's
+    /// current state, it will process it, mutating it's status accordingly. Otherwise, it will
+    /// return an error.
+    ///
+    /// # Errors
+    ///
+    /// Returns `anyhow::Error` whenever a transaction can be processed due to being
+    /// inconsistent with the current account status.
+    ///
+    /// `apply` will always fail if the account is locked.
+    ///
+    /// `apply` will always fail for transactions belonging to a different client.
+    pub fn apply(&mut self, transaction: Transaction) -> Result<()> {
         Account::bail_if_unauthorized(self, transaction.client)?;
         Account::bail_if_locked(self)?;
 
@@ -49,7 +78,7 @@ impl Account {
 
                 let result = self.balance.hold(amount);
                 if result.is_err() {
-                    self.locked = true;
+                    self.lock();
                 }
 
                 result
@@ -65,7 +94,7 @@ impl Account {
                 self.balance.release(amount)
             }
             Type::Chargeback => {
-                self.locked = true;
+                self.lock();
                 let deposit = self.get_deposit(transaction.tx)?;
                 let amount = deposit.amount;
 
@@ -73,7 +102,7 @@ impl Account {
                     .close_dispute()
                     .map_err(|e| anyhow!("{e} for {:?}", transaction.tx))?;
 
-                self.balance.revert(amount)
+                self.balance.reimburse(amount)
             }
         }
     }
@@ -81,7 +110,7 @@ impl Account {
     fn get_deposit(&mut self, tx: Tx) -> Result<&mut Deposit> {
         self.deposits
             .get_mut(&tx)
-            .ok_or(anyhow!("no deposit for resolve tx: {:?}", tx))
+            .ok_or(anyhow!("deposit missing tx: {:?}", tx))
     }
 
     fn bail_if_locked(&self) -> Result<()> {

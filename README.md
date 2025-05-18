@@ -30,36 +30,21 @@ A dev shell is provided in `flake.nix` if you want to run reproductibly.
 
 ## Assumptions
 
-### 1. Customers dispute transactions against a third party, i.e. cc issuer or bank
+### 0. Amounts can not be negative
 
-- `Deposits` are understood as top-ups from a third party account into the
-  application's account.
-- `Withdrawals` are understood as pay-outs from the application's account into a
-  third party account.
+There's little point to having separate entities for `Deposits` and
+`Withdrawals` if negative amounts are allowed (isn't a deposit of a negative
+amount just a withdrawal?).
 
-Only deposits can be disputed by a customer (by making a claim to their credit
-card issuer for a stolen card, for example), as disputing a withdrawal offers no
-clear advantage; the customer could deposit the funds again or return the
-transfer.
+Negative amounts are disallowed from transactions, but also from balances. This
+immediately leads to assumptions #2 and #4, as neither held nor available
+balance can be negative.
 
-Disputing a withdrawal is considered out of scope, as the rationale for a
-customer disputing received funds against a third party is unclear. Handling
-such a case by allowing negative amounts (either held or available) would
-introduce significant complexity for a marginal use case.
+In general, all other assumptions derive totally or partially from this one.
 
-### 2. A resolved dispute cannot be chargedback nor viceversa
+### 1. Disputing funds that have already been withdrawn results in a locked account
 
-While some use cases might suggest allowing a chargeback on a resolved dispute,
-this engine does not permit such an action unless a new dispute is initiated.
-Chargebacks and resolves are only processed if an associated deposit exists and
-is currently in an open dispute state.
-
-### 3. Opening a new dispute for the same tx before the previous one was resolved is a no-op
-
-Only one open dispute per transaction is permitted at any given time. A dispute
-can always be reopened **after** resolution, but not prior to it.
-
-### 4. Disputing funds that have already been withdrawn results in a locked account
+This is the perhaps the riskier assumption, here's the rationale for it:
 
 Because transactions appear in chronological ordering, it's possible to have an
 account that receives a deposit, a withdrawal and a dispute, such that:
@@ -69,10 +54,43 @@ account that receives a deposit, a withdrawal and a dispute, such that:
 - Dispute the first deposit (10.00 should be moved from available to held, but
   there's nothing available to move)
 
-**In this case**, there would be insufficient available funds to withhold. This
-seems like a standard case of fraud (disputing a deposit after withdrawing it's
-funds) so **the account is locked**. Alternative handling methods exist but
-would introduce considerable complexity.
+In this case, there would be insufficient available funds to withhold.
+
+This seems like a **standard case of successful fraud** (disputing a deposit
+after withdrawing it's funds) **or successful theft** (an attacker deposits
+their target's funds into an external service, withdraws the money there, and
+then the victim disputs).
+
+That's why instead of just ignoring the dispute and moving on, the ledger
+**assumes foul play, ignores the dispute, and locks the account in order to both
+flag it and prevent future transactions on it.**
+
+### 2. Only deposits can be disputed
+
+- `Deposits` are understood as top-ups from a third party account into the
+  application's account.
+- `Withdrawals` are understood as pay-outs from the application's account into a
+  third party account.
+
+Disputing a withdrawal is considered out of scope (is there any point to it
+anyway?), as the rationale for a customer disputing received funds is not clear.
+This stems directly from assumption #0 applied to balance on hold.
+
+### 3. The same dispute can't be both resolved and chargedback
+
+Resolves and Chargebacks **close** a dispute. The first to happen will be
+processed, but subsequent attempts will be ignored until a dispute is **opened**
+again.
+
+This engine does not permit closing a dispute unless an there is an existing,
+open dispute. This also stems directly from assumption #0 applied to balance on
+hold.
+
+### 4. You can only have one opened dispute per deposit
+
+A disputed transaction can always be redisputed **after** the previous dispute's
+resolution, but not before. You can't have more than one open dispute per
+transaction.
 
 ## Design
 
@@ -87,7 +105,7 @@ account (even ignored ones) for auditing purposes.
 
 However, for performance and simplicity in handling disputes, only a history of
 deposits is saved. The original CSV remains available, along with the list of
-processed records.
+processed records, in case the state wants to be replayed.
 
 ### Model
 
@@ -118,9 +136,8 @@ processed records.
   transactions by finding the account they affect, and delegating processing to
   it.
 - `model/common.rs`: Common types that are ubiquitous to this domain. The
-  `Amount` type might be an unnecessary abstraction; using `Decimal` directly
-  could have been preferable, avoiding the need to reimplement arithmetic
-  operations.
+  `Amount` represents positively valued, unitless, arbitrary precision monetary
+  amounts that can be added and substracted (clips at 0).
 
 ### IO
 
@@ -152,18 +169,16 @@ enough, deemed generally secure by the Rust community, and at least >1.0.0.
 ### Dev dependencies
 
 - `rust_decimal_macros`: `dec!(3.141)` as syntax sugar for
-  `Decimal::new(3141, 3)`. It adds up on the fingers.
+  `Decimal::new(3141, 3)`. It adds a bit of readability on long tests.
 
 ## Improvements
 
-- As the solution evolved, the intermediate representations and the models
-  converged. Some slight changes in modelling and effective use of serde
-  annotations might allow for the removal of some of these models if desirable.
-- Several components are lazily evaluated, but in general explicit concurrency
-  is limited. For some datasets, grouping first by client and then processing
-  transactions in parallel might be a worthy tradeoff, but it could be
-  detrimental for other datasets.
-- Transaction ordering on the CSV has semantical meaning: they are in
-  chronological order. However that information is completely ignored.
+- Error handling in main is a bit over the place due to handling the verbose
+  flag. It could be greatly improved or we could switch tou a logging crate.
+- Public library functions returning `anyhow::Error` is a bit sketchy.
+- Tests could be more organized, grouped by smaller module rather than bigger
+  one.
 - In general, a significant performance improvement could be achieved by being
-  able to print a part of the ledger as some accounts are still being processed.
+  able to print a part of the ledger as some transactions are still being
+  processed, i.e. printing the state of some accounts while there's pending
+  transactions on other accounts.

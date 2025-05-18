@@ -1,24 +1,41 @@
-use std::io::Read;
+use std::{
+    io::{BufReader, Read, stdin},
+    path::PathBuf,
+};
 
 use csv::Reader;
 use serde::Deserialize;
 use thiserror::Error;
 
 use crate::model::{
-    common::{
-        Amount, Client,
-        DisputeStatus::{self},
-        Tx,
-    },
-    transaction::{Deposit, Transaction, Type, Withdrawal},
+    common::{Amount, Client, Tx},
+    transaction::{Deposit, DisputeStatus, Transaction, Type, Withdrawal},
 };
 
-pub fn reader<R: Read>(rdr: R) -> Reader<R> {
+pub fn csv_reader<R: Read>(rdr: R) -> Reader<R> {
     csv::ReaderBuilder::new()
         .trim(csv::Trim::All)
         .has_headers(true)
         .flexible(true)
         .from_reader(rdr)
+}
+
+pub fn create_csv_reader(
+    input_path: Option<PathBuf>,
+) -> anyhow::Result<csv::Reader<Box<dyn Read>>> {
+    let buf_reader: Box<dyn Read> = match input_path {
+        Some(path) => {
+            let file = std::fs::File::open(path)?;
+            Box::new(BufReader::new(file))
+        }
+        None => Box::new(BufReader::new(stdin())),
+    };
+
+    Ok(csv::ReaderBuilder::new()
+        .trim(csv::Trim::All)
+        .has_headers(true)
+        .flexible(true)
+        .from_reader(buf_reader))
 }
 
 #[derive(Debug, Deserialize)]
@@ -42,11 +59,10 @@ pub enum TransactionType {
 
 #[derive(Error, Debug)]
 pub enum InputMappingError {
-    #[error("missing mandatory amount for a {transaction_type:?} - {tx:?} - {client:?}")]
+    #[error("missing mandatory amount for a {transaction_type:?} - {tx:?}")]
     MissingAmount {
         transaction_type: TransactionType,
         tx: Tx,
-        client: Client,
     },
     #[error("line {0} could not be parsed")]
     ParseError(#[from] csv::Error),
@@ -65,12 +81,11 @@ impl TryFrom<InputTransactionRecord> for Transaction {
                 client,
                 tx,
                 t_type: Type::Deposit(Deposit {
+                    dispute_status: DisputeStatus::default(),
                     amount: raw_record.amount.ok_or(InputMappingError::MissingAmount {
                         transaction_type,
                         tx,
-                        client,
                     })?,
-                    dispute_status: DisputeStatus::Closed,
                 }),
             }),
             TransactionType::Withdrawal => Ok(Transaction {
@@ -80,7 +95,6 @@ impl TryFrom<InputTransactionRecord> for Transaction {
                     amount: raw_record.amount.ok_or(InputMappingError::MissingAmount {
                         transaction_type,
                         tx,
-                        client,
                     })?,
                 }),
             }),

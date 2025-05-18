@@ -1,19 +1,13 @@
-use std::{
-    error::Error,
-    fs::File,
-    io::{BufReader, BufWriter, Read, stdin, stdout},
-    path::PathBuf,
-};
+use std::{error::Error, io::Read, path::PathBuf};
 
 use clap::{Parser, command};
-use io::{
-    input::{self, InputMappingError, InputTransactionRecord},
-    output::{self, OutputAccountRecord},
+use payments::{
+    io::{
+        input::{InputMappingError, InputTransactionRecord, create_csv_reader},
+        output::serialize_ledger,
+    },
+    model::{ledger::Ledger, transaction::Transaction},
 };
-use model::{ledger::Ledger, transaction::Transaction};
-
-mod io;
-mod model;
 
 /// Command line arguments for the Petit Payments Engine.
 #[derive(Parser, Debug)]
@@ -49,62 +43,54 @@ fn main() -> Result<(), Box<dyn Error>> {
         eprintln!("Verbose mode enabled, printing all errors to stderr.");
     }
 
-    // Prepare the CSV reader with the input file or stdin if no path is passed.
-    let buf_reader: Box<dyn Read> = match cli.input_path {
-        Some(path) => {
-            let file = File::open(path)?;
-            Box::new(BufReader::new(file))
-        }
-        None => Box::new(BufReader::new(stdin())),
-    };
-    let mut csv_reader = input::reader(buf_reader);
+    let mut rdr = create_csv_reader(cli.input_path)?;
 
-    // Read all valid records, dump parse errors to stderr.
-    let records = csv_reader
-        .deserialize::<InputTransactionRecord>()
-        .filter_map(|r_itr| match r_itr {
-            Ok(itr) => Some(itr),
-            Err(e) => {
-                if cli.verbose {
-                    eprintln!(
-                        "input_mapping_error::parse_error: {}",
-                        InputMappingError::ParseError(e)
-                    );
-                }
-                None
-            }
-        });
+    let ledger = process_transactions(&mut rdr, cli.verbose);
 
+    serialize_ledger(ledger, cli.verbose);
+
+    Ok(())
+}
+
+/// Process transactions from a csv reader
+pub fn process_transactions(rdr: &mut csv::Reader<Box<dyn Read>>, verbose: bool) -> Ledger {
     let mut ledger = Ledger::default();
 
+    // Read all valid records, dump parse errors to stderr.
+    let rcrds =
+        rdr.deserialize::<InputTransactionRecord>()
+            .filter_map(|txn_record| match txn_record {
+                Ok(itr) => Some(itr),
+                Err(e) => {
+                    let e = InputMappingError::ParseError(e);
+                    if verbose {
+                        eprintln!("input_mapping_error::parse_error: {e}",);
+                    }
+                    None
+                }
+            });
+
     // Attempt to map all `InputTransactionRecord`s into `Transaction`s.
-    records
+    let txns = rcrds
         .map(Transaction::try_from)
-        .filter_map(|rtxn| match rtxn {
-            Ok(txn) => Some(ledger.process(txn)),
+        .filter_map(|txn| match txn {
+            Ok(txn) => Some(ledger.apply(txn)),
             Err(e) => {
-                if cli.verbose {
+                if verbose {
                     eprintln!("input_mapping_error: {e}");
                 }
                 None
             }
-        })
-        // Then process all transactions.
-        .for_each(|processing_result| {
-            if let Err(e) = processing_result {
-                if cli.verbose {
-                    eprintln!("warning: {e}");
-                }
-            }
         });
 
-    // Serialize ledger
-    let mut csv_writer = output::writer(BufWriter::new(stdout()));
-    for acc in ledger.accounts.into_values() {
-        csv_writer
-            .serialize(OutputAccountRecord::from(acc))
-            .expect("Should be serializable no errors"); //TODO: this is dangerous
-    }
+    // Then process all transactions.
+    txns.for_each(|processing_result| {
+        if let Err(e) = processing_result {
+            if verbose {
+                eprintln!("warning: {e}");
+            }
+        }
+    });
 
-    Ok(())
+    ledger
 }

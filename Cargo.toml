@@ -1,5 +1,5 @@
 [package]
-name = "payments-engine"
+name = "payments"
 version = "0.1.0"
 edition = "2024"
 description = "A model of a payments engine with fraud detection capabilities"
