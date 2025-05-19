@@ -1,9 +1,9 @@
 [package]
-name = "tiny_ledger"
+name = "little_ledger"
 version = "0.1.0"
 edition = "2024"
-description = "A model of a payments engine with fraud detection capabilities"
-repository = "https://github.com/tomasguinzburg/payments-engine"
+description = "A little ledger with small dispute capabilities"
+repository = "https://github.com/tomasguinzburg/little-ledger"
 readme = "README.md"
 license = "Apache 2.0"
 

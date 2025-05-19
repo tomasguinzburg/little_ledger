@@ -1,5 +1,5 @@
 {
-  description = "tiny_ledger dev flake";
+  description = "little_ledger dev flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -25,7 +25,7 @@
       pkgs = pkgsFor system;
     in {
       default = pkgs.mkShell {
-        name = "payments-engine";
+        name = "little_ledger";
 
         nativeBuildInputs = [
           pkgs.fenix.stable.toolchain

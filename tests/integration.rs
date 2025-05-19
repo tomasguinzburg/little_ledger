@@ -6,7 +6,7 @@ use std::{
 
 use rust_decimal_macros::dec;
 
-use tiny_ledger::{
+use little_ledger::{
     io::{
         input::{create_csv_reader, deserialize_transactions},
         output::{create_csv_writer, serialize_ledger},
