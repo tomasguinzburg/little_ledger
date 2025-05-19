@@ -76,12 +76,11 @@ impl Account {
                     .open_dispute()
                     .map_err(|e| anyhow!("{e} for {:?}", transaction.tx))?;
 
-                let result = self.balance.hold(amount);
-                if result.is_err() {
-                    self.lock();
-                }
+                self.balance.hold(amount)
 
-                result
+                // FIXME: I think we should lock the account here if hold().is_err(); as this looks like a
+                // typical case of fraud, but I don't want to break the spec without discussing it
+                // with whomever is going to consume this.
             }
             Type::Resolve => {
                 let deposit = self.get_deposit(transaction.tx)?;

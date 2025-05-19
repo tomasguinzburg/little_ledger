@@ -11,7 +11,7 @@ use super::{
 // Amount tests
 #[test]
 fn negative_amount_allow_only_nonnegative_values() {
-    Amount::try_from(dec!(-1)).expect_err("Only non-negative values allowed");
+    Amount::try_from(dec!(-1)).expect_err("only non-negative values allowed");
 }
 
 // Balance tests
@@ -213,7 +213,7 @@ fn positive_account_edge_case_open_dispute_after_previous_one_resolved() {
     ];
 
     txns.map(|txn| {
-        account.apply(txn).expect("All transactions should succeed");
+        account.apply(txn).expect("all transactions should succeed");
     });
     assert_eq!(account.balance.available(), Amount::ZERO);
     assert_eq!(account.balance.held(), Amount::ZERO);
@@ -290,7 +290,7 @@ fn negative_account_dispute_missing_deposit() {
     txns.map(|txn| {
         account
             .apply(txn)
-            .expect_err("Can't process dispute on a deposit that doesn't exist");
+            .expect_err("can't process dispute on a deposit that doesn't exist");
     });
 }
 
@@ -333,8 +333,8 @@ fn negative_account_dispute_insufficient_funds() {
         .apply(txns[2])
         .expect_err("dispute should fail due to insufficient funds");
 
-    // We lock the account defensively
-    assert!(account.locked);
+    // The spec does not say we should lock the account
+    assert!(!account.locked);
 }
 
 #[test]
@@ -368,11 +368,11 @@ fn negative_account_edge_case_open_dispute_after_previous_one_chargedback() {
     txns.as_slice()[0..3].iter().for_each(|txn| {
         account
             .apply(*txn)
-            .expect("All transactions should succeed");
+            .expect("all transactions should succeed");
     });
     account
         .apply(txns[3])
-        .expect_err("Account should be locked, so the dispute should fail");
+        .expect_err("account should be locked, so the dispute should fail");
     assert_eq!(account.balance.available(), Amount::ZERO);
     assert_eq!(account.balance.held(), Amount::ZERO);
     assert!(account.locked);
