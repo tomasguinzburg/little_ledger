@@ -1,7 +1,7 @@
 use std::{error::Error, path::PathBuf};
 
 use clap::{Parser, command};
-use tiny_ledger::{
+use little_ledger::{
     io::{
         input::{create_csv_reader, deserialize_transactions},
         output::serialize_ledger,
