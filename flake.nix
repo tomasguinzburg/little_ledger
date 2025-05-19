@@ -1,5 +1,5 @@
 {
-  description = "Payments Engine dev flake";
+  description = "tiny_ledger dev flake";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

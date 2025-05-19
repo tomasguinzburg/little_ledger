@@ -1,7 +1,7 @@
 use rust_decimal_macros::dec;
 
 use crate::{
-    io::input::{InputTransactionRecord, csv_reader},
+    io::input::{InputTransactionRecord, reader},
     model::{
         common::{Amount, Client, Tx},
         transaction::{Deposit, DisputeStatus, Transaction, Type},
@@ -18,7 +18,7 @@ fn negative_deserialization() {
                     homungus,1,1,
                     deposit,1,1,1.2345"; // <- Valid txn for control
 
-    let mut rdr = csv_reader(input_data.as_bytes());
+    let mut rdr = reader(input_data.as_bytes());
     let mut txns: Vec<Transaction> = Vec::new();
 
     for raw_txn in rdr.deserialize::<InputTransactionRecord>().flatten() {

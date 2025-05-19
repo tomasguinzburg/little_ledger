@@ -1,9 +1,9 @@
-use std::{error::Error, io::Read, path::PathBuf};
+use std::{error::Error, path::PathBuf};
 
 use clap::{Parser, command};
-use payments::{
+use tiny_ledger::{
     io::{
-        input::{InputMappingError, InputTransactionRecord, create_csv_reader},
+        input::{create_csv_reader, deserialize_transactions},
         output::serialize_ledger,
     },
     model::{ledger::Ledger, transaction::Transaction},
@@ -35,57 +35,35 @@ struct Cli {
 /// # Errors
 ///
 /// The application will try to continue optimistically as best as it can, even on a malformed CSV it will try to
-/// process the valid lines. It will only return with err if the specified file can't be opened (i.e. does not exist)
+/// process the valid lines. It will only return with err if the specified file can't be opened (i.e. does not exist),
+/// or if a buffer to stdout can't be flushed, which should never happen.
 fn main() -> Result<(), Box<dyn Error>> {
     // Parse command line options.
     let cli = Cli::parse();
     if cli.verbose {
         eprintln!("Verbose mode enabled, printing all errors to stderr.");
     }
+    let rdr = create_csv_reader(cli.input_path)?;
 
-    let mut rdr = create_csv_reader(cli.input_path)?;
+    let txns = deserialize_transactions(Some(rdr), cli.verbose)?;
 
-    let ledger = process_transactions(&mut rdr, cli.verbose);
+    let ledger = process_transactions(txns, cli.verbose);
 
-    serialize_ledger(ledger, cli.verbose);
+    serialize_ledger(ledger, None, cli.verbose)?;
 
     Ok(())
 }
 
-/// Process transactions from a csv reader
-pub fn process_transactions(rdr: &mut csv::Reader<Box<dyn Read>>, verbose: bool) -> Ledger {
+/// Process transactions
+///
+/// Create a new ledger and apply all `txns` in the provider iterator. Returns the fully processed
+/// ledger.
+pub fn process_transactions(txns: impl Iterator<Item = Transaction>, verbose: bool) -> Ledger {
     let mut ledger = Ledger::default();
 
-    // Read all valid records, dump parse errors to stderr.
-    let rcrds =
-        rdr.deserialize::<InputTransactionRecord>()
-            .filter_map(|txn_record| match txn_record {
-                Ok(itr) => Some(itr),
-                Err(e) => {
-                    let e = InputMappingError::ParseError(e);
-                    if verbose {
-                        eprintln!("input_mapping_error::parse_error: {e}",);
-                    }
-                    None
-                }
-            });
-
-    // Attempt to map all `InputTransactionRecord`s into `Transaction`s.
-    let txns = rcrds
-        .map(Transaction::try_from)
-        .filter_map(|txn| match txn {
-            Ok(txn) => Some(ledger.apply(txn)),
-            Err(e) => {
-                if verbose {
-                    eprintln!("input_mapping_error: {e}");
-                }
-                None
-            }
-        });
-
     // Then process all transactions.
-    txns.for_each(|processing_result| {
-        if let Err(e) = processing_result {
+    txns.for_each(|txn| {
+        if let Err(e) = ledger.apply(txn) {
             if verbose {
                 eprintln!("warning: {e}");
             }

@@ -1,11 +1,15 @@
-use std::io::BufWriter;
+use std::{
+    fs::File,
+    io::{BufReader, Read},
+    path::PathBuf,
+};
 
 use rust_decimal_macros::dec;
 
-use payments::{
+use tiny_ledger::{
     io::{
-        input::{InputTransactionRecord, csv_reader},
-        output::{OutputAccountRecord, writer},
+        input::{create_csv_reader, deserialize_transactions},
+        output::{create_csv_writer, serialize_ledger},
     },
     model::{
         common::{Amount, Client, Tx},
@@ -16,27 +20,13 @@ use payments::{
 
 #[test]
 fn deserialize_apply_serialize() {
-    // <- testing that it works with missing or extra trailing commas and unexpected amounts
-    let input_data = "type,client,tx,amount
-                    deposit,1,1,1.2345
-                    withdrawal,1,2,0
-                    dispute,1,1,
-                    resolve,1,1,
-                    dispute,1,1
-                    chargeback,1,1,1.000,sarasa,some extra,sarasovich
-                    deposit,2,1,1.2345
-                    deposit,2,2,5.4321
-                    dispute,2,2,";
-    let mut rdr = csv_reader(input_data.as_bytes());
-    let mut txns: Vec<Transaction> = Vec::new();
+    let rdr =
+        create_csv_reader(Some(PathBuf::from("./tests/input.csv"))).expect("should be readable");
+    let txns: Vec<Transaction> = deserialize_transactions(Some(rdr), true)
+        .expect("should deserialize")
+        .collect();
 
-    for result in rdr.deserialize::<InputTransactionRecord>() {
-        let txn = Transaction::try_from(result.expect("happy case should parse"))
-            .expect("happy case should map");
-        txns.push(txn);
-    }
-
-    assert_eq!(txns.len(), 9);
+    assert_eq!(txns.len(), 112);
 
     assert_eq!(
         txns[0],
@@ -96,27 +86,21 @@ fn deserialize_apply_serialize() {
     txns.iter()
         .for_each(|txn| ledger.apply(*txn).expect("transactions are valid"));
 
-    let mut output_buffer = Vec::new();
+    let file_writer =
+        create_csv_writer(Some(PathBuf::from("./tests/output.csv"))).expect("should be readable");
 
-    {
-        let mut csv_writer = writer(BufWriter::new(&mut output_buffer));
+    serialize_ledger(ledger, Some(file_writer), true).expect("buffer should flush");
 
-        //The way this test is written, we need to sort the accounts to prevent flakyness.
-        let mut sorted_accounts: Vec<_> = ledger.accounts.into_values().collect();
-        sorted_accounts.sort_by_key(|acc| acc.client.0);
+    let file = File::open("./tests/output.csv").expect("file should open");
+    let output_buf = BufReader::new(file);
+    let output = String::from_utf8(output_buf.bytes().map(|x| x.unwrap()).collect())
+        .expect("should be valid utf8");
 
-        for account_data in sorted_accounts {
-            csv_writer
-                .serialize(OutputAccountRecord::from(account_data))
-                .expect("Serialization should not fail");
-        }
-        csv_writer.flush().expect("Flushing shouldn't fail");
-    }
-
-    let output_string = String::from_utf8(output_buffer).expect("Buffer should be valid UTF-8");
-
-    assert_eq!(
-        output_string,
-        "client,available,held,total,locked\n1,0.0000,0.0000,0.0000,true\n2,1.2345,5.4321,6.6666,false\n"
+    assert!(output.contains("client,available,held,total,locked"));
+    assert!(output.contains("1,0.0000,0.0000,0.0000,true"));
+    assert!(output.contains("2,5.4321,1.2345,6.6666,false"));
+    assert!(
+        output.contains("3,79228162514264337593543950335,0,79228162514264337593543950335,false")
     );
+    assert!(output.contains("4,10000,0,10000,false"));
 }

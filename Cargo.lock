@@ -317,19 +317,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
 
 [[package]]
-name = "payments"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "csv",
- "rust_decimal",
- "rust_decimal_macros",
- "serde",
- "thiserror",
-]
-
-[[package]]
 name = "ppv-lite86"
 version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -587,6 +574,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.101",
+]
+
+[[package]]
+name = "tiny_ledger"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "csv",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]

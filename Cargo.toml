@@ -1,15 +1,16 @@
 [package]
-name = "payments"
+name = "tiny_ledger"
 version = "0.1.0"
 edition = "2024"
 description = "A model of a payments engine with fraud detection capabilities"
 repository = "https://github.com/tomasguinzburg/payments-engine"
 readme = "README.md"
+license = "Apache 2.0"
 
 [dependencies]
 serde = { version = "1.0.219", features = ["derive"] }
 csv = "1.3.1"
-rust_decimal = { version = "1.37.1", features = ["serde-arbitrary-precision"] }
+rust_decimal = { version = "1.37.1", features = ["serde-str"] }
 clap = { version = "4.5.38", features = ["derive"] }
 anyhow = "1.0.98"
 thiserror = "2.0.12"

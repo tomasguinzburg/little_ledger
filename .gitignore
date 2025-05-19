@@ -2,3 +2,4 @@
 .direnv/
 transactions.csv
 malformed.csv
+/tests/output.csv

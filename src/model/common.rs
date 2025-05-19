@@ -18,7 +18,7 @@ pub struct Tx(pub u32);
 /// `try_from` a decimal.
 #[derive(Debug, PartialEq, PartialOrd, Clone, Copy, Serialize, Deserialize)]
 #[serde(try_from = "rust_decimal::Decimal")]
-pub struct Amount(#[serde(with = "rust_decimal::serde::arbitrary_precision")] Decimal);
+pub struct Amount(Decimal);
 
 #[derive(Error, Debug)]
 #[error("negative amounts are not allowed")]

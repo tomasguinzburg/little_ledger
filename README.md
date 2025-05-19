@@ -1,4 +1,4 @@
-# Petit Payments Engine (PPE)
+# Tiny Ledger
 
 A small payments engine that reads transactions from an input csv, tallies them
 on a ledger, and outputs the state of the ledger as a csv. It has some minimal
@@ -12,9 +12,9 @@ With `cargo` installed, the repository can be cloned and then executed via:
 cargo run -- input.csv > output.csv
 ```
 
-The program exhibits leniency in parsing, ignoring any error and processing al
+The program performs very lenient parsing, ignoring any error and processing all
 syntactically and semantically valid lines on the input. Error reporting to
-stderr can be enabled by using the `--verbose` flag:
+stderr can be enabled by using the `--verbose` flag, it's disabled by default:
 
 ```sh
 cargo run -- input.csv --verbose > output.csv
@@ -26,7 +26,7 @@ You can also pipe stdin, for example:
 cat input.csv | cargo run
 ```
 
-A dev shell is provided in `flake.nix` if you want to run reproductibly.
+A dev shell is provided in `flake.nix` if you'd rather use one.
 
 ## Assumptions
 
@@ -42,28 +42,17 @@ balance can be negative.
 
 In general, all other assumptions derive totally or partially from this one.
 
-### 1. Disputing funds that have already been withdrawn results in a locked account
+### 1. Disputing funds that have already been withdrawn results in an ignored dispute.
 
-This is the perhaps the riskier assumption, here's the rationale for it:
+This decision stemps from assumption #0: we have to ingore the funds holding
+part of a dispute when there are less available funds than are being disputed.
 
-Because transactions appear in chronological ordering, it's possible to have an
-account that receives a deposit, a withdrawal and a dispute, such that:
+However, I don't think this is enough. I think we should also lock the account
+preventively, as this seems like a standard case of fraud or identity theft.
 
-- Deposit any positive amount (i.e, 10.00 to available)
-- Withdraw any positive amount (i.e, 10.00 from available)
-- Dispute the first deposit (10.00 should be moved from available to held, but
-  there's nothing available to move)
-
-In this case, there would be insufficient available funds to withhold.
-
-This seems like a **standard case of successful fraud** (disputing a deposit
-after withdrawing it's funds) **or successful theft** (an attacker deposits
-their target's funds into an external service, withdraws the money there, and
-then the victim disputs).
-
-That's why instead of just ignoring the dispute and moving on, the ledger
-**assumes foul play, ignores the dispute, and locks the account in order to both
-flag it and prevent future transactions on it.**
+In order to not confuse any automated consumer of this program that's expecting
+it to be to spec, the dispute is ignored completely (i.e. the account is not
+locked), but I think locking the account would be a great improvement.
 
 ### 2. Only deposits can be disputed
 
@@ -96,16 +85,15 @@ transaction.
 
 The design of the program is minimal: a `model` module contains all of the core
 models, while some serialization and deserialization concerns are grouped under
-the `io` module.
+the `io` module. Both are exposed as a lib.
 
 Because transactions can be thought of as events, and the input csv as an append
-only log, the state of the ledger can always be reconstructed. The initial
-design considered keeping the whole history of transactions associated with each
-account (even ignored ones) for auditing purposes.
+only log from which we are reading, the state of the ledger can always be
+reconstructed.
 
-However, for performance and simplicity in handling disputes, only a history of
-deposits is saved. The original CSV remains available, along with the list of
-processed records, in case the state wants to be replayed.
+Althought it would be a nice improvement if we could save the full history of
+transactions for an account and reconstruct its state on demand up till a
+certain point; that was considered beyond the scope of this project.
 
 ### Model
 
@@ -166,19 +154,21 @@ enough, deemed generally secure by the Rust community, and at least >1.0.0.
   debugging, the aim was to include a verbose flag and also to be able to pipe
   stdin, without risking harm to the intended usage.
 
-### Dev dependencies
-
-- `rust_decimal_macros`: `dec!(3.141)` as syntax sugar for
-  `Decimal::new(3141, 3)`. It adds a bit of readability on long tests.
-
 ## Improvements
 
-- Error handling in main is a bit over the place due to handling the verbose
-  flag. It could be greatly improved or we could switch tou a logging crate.
-- Public library functions returning `anyhow::Error` is a bit sketchy.
-- Tests could be more organized, grouped by smaller module rather than bigger
-  one.
+- Error handling is a bit over the place due to handling the verbose flag. It
+  could be greatly improved or we could switch to a logging crate.
+- Much better use of `thiserror` and `anyhow` could have been done.
+- On the contrary, public library functions returning `anyhow::Error` is a bit
+  sketchy.
+- Model unit tests could be more organized, grouped by smaller module rather
+  than bigger one.
+- As mentioned in [design](#Design), having the full history of transactions for
+  an account, and being able to reconstruct the state by replaying them up till
+  a certain step would be cool.
 - In general, a significant performance improvement could be achieved by being
   able to print a part of the ledger as some transactions are still being
   processed, i.e. printing the state of some accounts while there's pending
-  transactions on other accounts.
+  transactions on other accounts. This could be achieved for some datasets by
+  first grouping the input records; but it could be very detrimental for other
+  datasets. It all depends on the distribution of the data we are expecting.
