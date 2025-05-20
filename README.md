@@ -1,4 +1,4 @@
-# Tiny Ledger
+# Little Ledger
 
 A small payments engine that reads transactions from an input csv, tallies them
 on a ledger, and outputs the state of the ledger as a csv. It has some minimal
