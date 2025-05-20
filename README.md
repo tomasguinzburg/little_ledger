@@ -143,16 +143,14 @@ The number of crates might appear extensive for a project of this scope. The
 selection criteria were that they addressed a specific issue, were common
 enough, deemed generally secure by the Rust community, and at least >1.0.0.
 
-- `serde` and `csv`: these are fundamental to the exercise.
-- `rust_decimal`: The choice of `rust_decimal` might be considered conservative.
-  Because there's no multiplication, exponentiation nor division, `f64` might
-  have sufficed for the required precision; but using arbitrary precision
-  decimals protects against platform indeterminism.
-- `anyhow` and `thiserror`: facilitate easier error handling, although their
-  integration could be further refined.
-- `clap`: provides clutter-free arguments parsing. For easy testing and
-  debugging, the aim was to include a verbose flag and also to be able to pipe
-  stdin, without risking harm to the intended usage.
+- `serde` and `csv`: these are fundamental to the program.
+- `rust_decimal`: guarantees `1e-4` precision whitin the
+  `abs(amount) < 7.923e+25` (± 80 septillons-ish) range.
+- `anyhow` and `thiserror`: easy error handling although their integration have
+  been better
+- `clap`: provides clutter-free arguments parsing. Might be overkill, the aim
+  was to be able to pipe stdin and toggle logging to stderr without hurting the
+  specified usage.
 
 ## Improvements
 
